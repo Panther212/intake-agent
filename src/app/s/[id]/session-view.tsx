@@ -4,6 +4,16 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { BriefPanel } from "@/components/brief-panel";
 import { callTool, newDecisionId, type Message, type SessionState } from "@/lib/client";
+import { useLiveVoice, type VoiceStatus } from "@/lib/use-live-voice";
+
+const VOICE_LABEL: Record<VoiceStatus, string> = {
+  idle: "",
+  connecting: "Connecting…",
+  listening: "Listening",
+  speaking: "Agent speaking — talk any time to interrupt",
+  reconnecting: "Reconnecting… your answers are saved",
+  error: "Voice stopped",
+};
 
 type ToolEvent = { name: string; args?: { field_id?: string; item?: string }; ok: boolean };
 type ChatItem = Message & { events?: ToolEvent[]; pending?: boolean };
@@ -88,7 +98,19 @@ export default function SessionView() {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
   }, [chat, sending]);
 
+  const voice = useLiveVoice({
+    sessionId: id,
+    onChange: () => void load().catch(() => {}),
+    onTranscript: (role, text) => setChat((c) => [...c, { role, channel: "voice", content: text }]),
+    onEnded: async () => {
+      const s = await load();
+      if (s.status === "reviewing") router.push(`/s/${id}/review`);
+    },
+  });
+  const voiceOn = voice.status !== "idle" && voice.status !== "error";
+
   async function pause() {
+    if (voiceOn) voice.stop();
     await callTool("pause", id, {}, newDecisionId());
     setChat((c) => [...c, { role: "agent", channel: "text", content: "Paused. Come back to this same link any time — I'll pick up exactly where we left off." }]);
     await load();
@@ -102,6 +124,7 @@ export default function SessionView() {
 
   async function finish() {
     if (!confirm("Finish the interview and review the brief?")) return;
+    if (voiceOn) voice.stop();
     await callTool("finish_interview", id, {}, newDecisionId());
     router.push(`/s/${id}/review`);
   }
@@ -154,6 +177,9 @@ export default function SessionView() {
             {chat.map((m, i) => (
               <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
                 <div className="max-w-[80%]">
+                  {m.channel === "voice" && (
+                    <p className={`mb-0.5 text-[11px] text-stone-400 ${m.role === "user" ? "text-right" : ""}`}>🎙 voice</p>
+                  )}
                   <div
                     className={`whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-[15px] leading-relaxed ${
                       m.role === "user" ? "bg-teal-700 text-white" : "border border-stone-200 bg-white text-stone-800"
@@ -179,6 +205,7 @@ export default function SessionView() {
                 <div className="rounded-2xl border border-stone-200 bg-white px-4 py-2.5 text-stone-400">thinking…</div>
               </div>
             )}
+            {voice.error && <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">{voice.error}</div>}
             {error && (
               <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                 {error.msg}{" "}
@@ -197,8 +224,36 @@ export default function SessionView() {
                 Resume
               </button>
             </div>
+          ) : live && voiceOn ? (
+            <div className="flex items-center gap-3 border-t border-stone-200 bg-teal-50 px-4 py-3">
+              <div className="relative flex h-10 w-10 shrink-0 items-center justify-center">
+                <span
+                  className="absolute inset-0 rounded-full bg-teal-600/25 transition-transform duration-100"
+                  style={{ transform: `scale(${1 + (voice.muted ? 0 : voice.level) * 0.9})` }}
+                />
+                <span className={`relative h-4 w-4 rounded-full ${voice.status === "speaking" ? "bg-teal-500" : "bg-teal-700"}`} />
+              </div>
+              <span className="flex-1 text-sm font-medium text-teal-900">
+                {voice.muted ? "Muted" : VOICE_LABEL[voice.status]}
+              </span>
+              <button onClick={voice.toggleMute} className="rounded-lg border border-teal-700/30 bg-white px-3 py-1.5 text-sm">
+                {voice.muted ? "Unmute" : "Mute"}
+              </button>
+              <button onClick={voice.stop} className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white">
+                Switch to typing
+              </button>
+            </div>
           ) : live ? (
             <form onSubmit={submit} className="flex gap-2 border-t border-stone-200 bg-white px-4 py-3">
+              <button
+                type="button"
+                onClick={voice.start}
+                disabled={sending}
+                title="Talk instead of typing"
+                className="rounded-lg border border-teal-700 px-3 py-2 text-sm font-medium text-teal-800 hover:bg-teal-50 disabled:opacity-50"
+              >
+                🎙 Talk
+              </button>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
