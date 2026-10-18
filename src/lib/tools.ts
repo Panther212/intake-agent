@@ -314,7 +314,12 @@ const tools = {
     const a = z.object({ field_id: z.enum(FIELD_IDS) }).parse(args);
     const s = await getSession(sid);
     requireStatus(s, ["interviewing", "reviewing"], "mark unknown");
-    return { revision: await writeField(s, a.field_id, { status: "unknown" }, "unknown") };
+    // If something is already captured, keep it as "vague" (detail unknown) rather than discarding it; never re-ask either way.
+    const [row] = await sql`select value from fields where session_id = ${sid} and field_id = ${a.field_id}`;
+    const status: FieldStatus = row?.value ? "vague" : "unknown";
+    const revision = await writeField(s, a.field_id, { status }, "unknown");
+    await sql`update fields set asked_count = 3 where session_id = ${sid} and field_id = ${a.field_id}`;
+    return { revision, status };
   },
 
   async decline(sid: string, args: unknown) {
@@ -451,6 +456,31 @@ const tools = {
                 on conflict (session_id, revision, audience) do update set content = excluded.content`;
     }
     return { revision: s.approved_revision, ...out };
+  },
+
+  async get_versions(sid: string) {
+    const s = await getSession(sid);
+    if (s.approved_revision == null) return { revision: null };
+    const rows = (await sql`select audience, content from briefs where session_id = ${sid}
+                            and revision = ${s.approved_revision} and audience <> 'snapshot'`) as {
+      audience: string;
+      content: string;
+    }[];
+    if (!rows.length) return { revision: s.approved_revision, generated: false };
+    return {
+      revision: s.approved_revision,
+      generated: true,
+      ...Object.fromEntries(rows.map((r) => [r.audience, r.content])),
+    };
+  },
+
+  /** Public read: only the redacted public brief, and only once the owner confirmed sharing. */
+  async get_shared(sid: string) {
+    const s = await getSession(sid);
+    if (s.status !== "shared") throw new ToolError("This brief has not been shared.");
+    const [row] = await sql`select content, created_at from briefs where session_id = ${sid}
+                            and revision = ${s.approved_revision} and audience = 'public'`;
+    return { revision: s.approved_revision, content: row.content as string, created_at: row.created_at };
   },
 
   async confirm_share(sid: string, args: unknown) {
