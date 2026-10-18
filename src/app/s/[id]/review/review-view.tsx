@@ -367,6 +367,10 @@ export default function ReviewView() {
                 ✓ Shared revision {versions.revision} (public, redacted) at{" "}
                 <a href={shareLink} target="_blank" className="font-medium underline">
                   {shareLink}
+                </a>{" "}
+                · now listed on the{" "}
+                <a href="/problems" target="_blank" className="font-medium underline">
+                  Problem Board
                 </a>
               </p>
             ) : state.status === "approved" && versions.generated ? (

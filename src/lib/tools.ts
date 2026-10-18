@@ -483,6 +483,25 @@ const tools = {
     return { revision: s.approved_revision, content: row.content as string, created_at: row.created_at };
   },
 
+  /** Public board: only owner-approved, shared, redacted briefs. Never exposes the raw input line. */
+  async list_shared() {
+    const rows = (await sql`select s.id, s.approved_revision, b.content, s.updated_at
+                            from sessions s join briefs b
+                              on b.session_id = s.id and b.revision = s.approved_revision and b.audience = 'public'
+                            where s.status = 'shared' order by s.updated_at desc limit 50`) as {
+      id: string;
+      approved_revision: number;
+      content: string;
+      updated_at: string;
+    }[];
+    return rows.map((r) => {
+      const lines = r.content.split("\n").map((l) => l.trim()).filter(Boolean);
+      const summary = lines.find((l) => !l.startsWith("#")) ?? "";
+      const open = r.content.match(/open questions[\s\S]*?(?=\n#|$)/i)?.[0].split("\n").filter((l) => /^\s*[-*]/.test(l)).length ?? 0;
+      return { id: r.id, revision: r.approved_revision, summary: summary.replace(/^[-*]\s*/, ""), open_questions: open, shared_at: r.updated_at };
+    });
+  },
+
   async confirm_share(sid: string, args: unknown) {
     const a = z.object({ revision: z.number().int() }).parse(args);
     const s = await getSession(sid);
@@ -509,7 +528,7 @@ export const TOOL_NAMES = Object.keys(tools) as ToolName[];
 /** Runs a tool. With a decision_id, repeats return the stored result instead of re-applying (idempotent). */
 export async function runTool(name: string, sessionId: string | null, args: unknown, decisionId?: string) {
   if (!(name in tools)) throw new ToolError(`Unknown tool "${name}". Available: ${TOOL_NAMES.join(", ")}`);
-  if (name !== "create_session" && !sessionId) throw new ToolError("session_id is required");
+  if (name !== "create_session" && name !== "list_shared" && !sessionId) throw new ToolError("session_id is required");
 
   if (decisionId) {
     const [prev] = await sql`select result from decisions where decision_id = ${decisionId}`;
