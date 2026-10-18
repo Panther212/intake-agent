@@ -1,3 +1,6 @@
+// Website reading and LLM calls can take a while; give serverless functions room.
+export const maxDuration = 60;
+
 import { z, ZodError } from "zod";
 import { runTool, ToolError } from "@/lib/tools";
 

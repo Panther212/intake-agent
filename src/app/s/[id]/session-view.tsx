@@ -24,6 +24,7 @@ const EVENT_LABEL: Record<string, string> = {
   mark_unknown: "Marked unknown",
   decline: "Declined",
   flag_sensitive: "Flagged sensitive",
+  set_redaction: "Redaction choice saved",
   pause: "Paused",
   resume: "Resumed",
   finish_interview: "Interview finished",

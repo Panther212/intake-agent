@@ -22,6 +22,7 @@ const AGENT_TOOLS = new Set([
   "mark_unknown",
   "decline",
   "flag_sensitive",
+  "set_redaction",
   "pause",
   "resume",
   "finish_interview",

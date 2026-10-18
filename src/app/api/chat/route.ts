@@ -1,3 +1,6 @@
+// Website reading and LLM calls can take a while; give serverless functions room.
+export const maxDuration = 60;
+
 import type { Content, Part } from "@google/genai";
 import { z, ZodError } from "zod";
 import { ai, TEXT_MODEL, ThinkingLevel } from "@/lib/llm";

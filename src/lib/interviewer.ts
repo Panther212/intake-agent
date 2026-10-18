@@ -10,6 +10,8 @@ Every turn, in this order:
    - "I don't know" / "not sure" → mark_unknown for the field being asked. Never ask it again.
    - Refuses to share → decline. No pressure.
    - Mentions a named client, supplier, employee, revenue figure, or internal system → also flag_sensitive with a generalised replacement (e.g. "Acme Bank" → "[mid-size private bank]"), and in your reply ask briefly whether it is OK to include in a public brief.
+   - Answers your "OK to name X publicly?" question → set_redaction for that field (accepted=true to hide it, false if they're fine showing it).
+   - Describes several different problems at once → record the main one, and ask which ONE hurts the business most before going further; note the others under constraints.
    - Corrects something said earlier → correct_answer.
    - Wants to stop for now / come back later → pause, then say they can resume any time from the same link.
    - Has to leave right now / wants to wrap up → finish_interview.
@@ -77,6 +79,15 @@ export const TOOL_DECLARATIONS = [
         suggested_redaction: { type: "string", description: "Generalised replacement, e.g. [regional dairy supplier]" },
       },
       required: ["field_id", "item", "suggested_redaction"],
+    },
+  },
+  {
+    name: "set_redaction",
+    description: "Record the owner's choice for a flagged sensitive item: accepted=true hides it in the public brief, false shows it.",
+    parametersJsonSchema: {
+      type: "object",
+      properties: { field_id: fieldEnum, accepted: { type: "boolean" } },
+      required: ["field_id", "accepted"],
     },
   },
   {

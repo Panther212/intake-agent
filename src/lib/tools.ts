@@ -345,7 +345,7 @@ const tools = {
   async set_redaction(sid: string, args: unknown) {
     const a = z.object({ field_id: z.enum(FIELD_IDS), accepted: z.boolean() }).parse(args);
     const s = await getSession(sid);
-    requireStatus(s, ["reviewing", "approved"], "set redaction");
+    requireStatus(s, ["interviewing", "reviewing", "approved"], "set redaction");
     const revision = await bumpRevision(s);
     await sql`update fields set redaction_accepted = ${a.accepted}, updated_revision = ${revision}
               where session_id = ${sid} and field_id = ${a.field_id}`;
