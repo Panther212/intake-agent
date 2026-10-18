@@ -1,17 +1,20 @@
 import "server-only";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 import { z } from "zod";
 
 export const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 export const TEXT_MODEL = process.env.GEMINI_TEXT_MODEL || "gemini-2.5-flash";
+export { ThinkingLevel };
 
 /** Ask Gemini for JSON matching `schema`; validates with zod and retries once. */
 export async function generateJson<T extends z.ZodType>(opts: {
   schema: T;
   system: string;
   prompt: string;
+  thinking?: ThinkingLevel;
 }): Promise<z.infer<T>> {
-  const { $schema: _ignored, ...jsonSchema } = z.toJSONSchema(opts.schema) as Record<string, unknown>;
+  const jsonSchema = z.toJSONSchema(opts.schema) as Record<string, unknown>;
+  delete jsonSchema.$schema;
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
@@ -23,6 +26,7 @@ export async function generateJson<T extends z.ZodType>(opts: {
           responseMimeType: "application/json",
           responseJsonSchema: jsonSchema,
           temperature: 0.3,
+          thinkingConfig: { thinkingLevel: opts.thinking ?? ThinkingLevel.LOW },
         },
       });
       return opts.schema.parse(JSON.parse(res.text ?? ""));

@@ -174,7 +174,7 @@ const tools = {
     if (s.input_url) {
       try {
         const fc = new Firecrawl({ apiKey: process.env.FIRECRAWL_API_KEY });
-        const doc = await fc.scrape(s.input_url, { formats: ["markdown"], onlyMainContent: true, timeout: 30000 });
+        const doc = await fc.scrape(s.input_url, { formats: ["markdown"], onlyMainContent: true, timeout: 20000 });
         websiteText = doc.markdown?.slice(0, 20000) || null;
         if (!websiteText) scrapeError = "Page had no readable text";
       } catch (e) {
@@ -225,7 +225,9 @@ const tools = {
     };
   },
 
-  async get_next_question(sid: string) {
+  async get_next_question(sid: string, args: unknown) {
+    // suggest=true adds an LLM-written question (slower); the chat/voice agent normally writes it from `guidance`.
+    const { suggest } = z.object({ suggest: z.boolean().optional() }).parse(args ?? {});
     const s = await getSession(sid);
     if (s.status === "paused") throw new ToolError("Session is paused — call resume first");
     requireStatus(s, ["interviewing"], "ask the next question");
@@ -240,6 +242,24 @@ const tools = {
     }
     await sql`update fields set asked_count = asked_count + 1 where session_id = ${sid} and field_id = ${target.field_id}`;
     await sql`update sessions set cursor_field = ${target.field_id}, updated_at = now() where id = ${sid}`;
+
+    const followUp = target.asked_count > 0;
+    const guidance =
+      target.status === "vague"
+        ? `We have "${target.value}" — too vague. Probe for a number, a concrete example or a specific person.`
+        : followUp
+          ? `Asked before without a usable answer. Rephrase more concretely or offer 2-3 example options.`
+          : `Ask about: ${target.label}.`;
+    const base = {
+      done: false,
+      field_id: target.field_id,
+      label: target.label,
+      status: target.status,
+      is_follow_up: followUp,
+      guidance,
+      completeness_pct: completeness(fields),
+    };
+    if (!suggest) return base;
 
     const recent = (await sql`select role, content from messages where session_id = ${sid}
                                order by id desc limit 6`) as { role: string; content: string }[];
@@ -256,14 +276,7 @@ const tools = {
         `Known so far:\n${known.join("\n") || "(nothing)"}\n` +
         `Recent conversation (newest first):\n${recent.map((m) => `${m.role}: ${m.content}`).join("\n") || "(none)"}`,
     });
-    return {
-      done: false,
-      field_id: target.field_id,
-      is_follow_up: target.asked_count > 0,
-      question: q.question,
-      why: q.why,
-      completeness_pct: completeness(fields),
-    };
+    return { ...base, question: q.question, why: q.why };
   },
 
   async record_answer(sid: string, args: unknown) {
