@@ -70,3 +70,6 @@ npm run dev
 | "Yes, fine to name Practo" | Agent agreed, but the review still redacted it | The agent had no tool to record redaction consent mid-interview | Exposed `set_redaction` to the agent during the interview | ✅ |
 | Typing while a turn was still finishing | Message vanished | Input cleared before checking the in-flight guard | Check the guard before clearing; one turn at a time | ✅ |
 | Chat turns took 12–20 s | Too slow for a live demo | 3 LLM calls per turn plus heavy thinking | Single LLM call per turn (structured guidance instead of a generated question) and low thinking | ✅ |
+| Deployed app: chat turns 10–12 s vs ~6 s locally | Sluggish demo | Vercel functions ran in the US; Neon DB is in Singapore, so every query crossed the Pacific | Pinned functions to `sin1` in `vercel.json` | ✅ ~5 s |
+
+**Live demo:** https://intake-agent-lon5.vercel.app
