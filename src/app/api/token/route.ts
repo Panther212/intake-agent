@@ -1,6 +1,7 @@
 // Website reading and LLM calls can take a while; give serverless functions room.
 export const maxDuration = 60;
 
+import { denyIfLocked } from "@/lib/access";
 import { Modality } from "@google/genai";
 import { z, ZodError } from "zod";
 import { ai } from "@/lib/llm";
@@ -16,6 +17,8 @@ const LIVE_MODEL = process.env.GEMINI_LIVE_MODEL || "gemini-2.5-flash-native-aud
  * always resumes from the backend's state.
  */
 export async function POST(request: Request) {
+  const locked = await denyIfLocked(request);
+  if (locked) return locked;
   try {
     const { session_id: sid } = z.object({ session_id: z.string().uuid() }).parse(await request.json());
     const state = (await runTool("get_session", sid, {})) as Parameters<typeof stateForPrompt>[0] & {

@@ -1,6 +1,7 @@
 // Website reading and LLM calls can take a while; give serverless functions room.
 export const maxDuration = 60;
 
+import { denyIfLocked } from "@/lib/access";
 import type { Content, Part } from "@google/genai";
 import { z, ZodError } from "zod";
 import { ai, TEXT_MODEL, ThinkingLevel } from "@/lib/llm";
@@ -16,6 +17,8 @@ const Body = z.object({
 type ToolEvent = { name: string; args: unknown; ok: boolean; result?: unknown; error?: string };
 
 export async function POST(request: Request) {
+  const locked = await denyIfLocked(request);
+  if (locked) return locked;
   try {
     const { session_id: sid, message } = Body.parse(await request.json());
     const state = (await runTool("get_session", sid, {})) as Parameters<typeof stateForPrompt>[0] & {

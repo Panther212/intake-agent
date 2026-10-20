@@ -86,7 +86,16 @@ export default function Home() {
             {step ?? "Start the interview"}
           </button>
         </form>
-        <p className="mt-4 text-xs text-stone-500">Use fictional or non-sensitive details for demos.</p>
+        <p className="mt-4 flex items-center justify-between text-xs text-stone-500">
+          <span>Use fictional or non-sensitive details for demos.</span>
+          <button
+            type="button"
+            onClick={() => fetch("/api/logout", { method: "POST" }).then(() => (window.location.href = "/login"))}
+            className="font-medium text-stone-600 underline"
+          >
+            Lock app
+          </button>
+        </p>
       </div>
     </main>
   );

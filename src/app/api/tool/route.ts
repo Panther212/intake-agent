@@ -1,6 +1,7 @@
 // Website reading and LLM calls can take a while; give serverless functions room.
 export const maxDuration = 60;
 
+import { denyIfLocked } from "@/lib/access";
 import { z, ZodError } from "zod";
 import { runTool, ToolError } from "@/lib/tools";
 
@@ -12,6 +13,8 @@ const Body = z.object({
 });
 
 export async function POST(request: Request) {
+  const locked = await denyIfLocked(request);
+  if (locked) return locked;
   try {
     const body = Body.parse(await request.json());
     const result = await runTool(body.name, body.session_id ?? null, body.args, body.decision_id);
